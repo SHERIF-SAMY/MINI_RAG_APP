@@ -2,10 +2,17 @@ from fastapi import APIRouter, Depends, UploadFile, status
 # from models import ResponseSignal
 from fastapi.responses import JSONResponse
 from helpers.config import get_settings, Settings
-from controllers import DataController, ProjectController
-from models import ResponseEnums 
+# from controllers import DataController, ProjectController, ProcessController
+from controllers.DataController import DataController
+from controllers.ProjectController import ProjectController
+from controllers.ProcessController import ProcessController
+from models import ResponseEnums
 import aiofiles
 import os
+
+from .schemes.data_schemes import ProcessRequest
+
+
 
 data_router = APIRouter(
     prefix="/api/v1/data",
@@ -59,3 +66,29 @@ async def upload_data(project_id : str, file : UploadFile,
             "path": project_dir_path # أضفناه للتأكد من نجاح العملية
         }
     )
+
+#====================================================================
+
+@data_router.post("/process/{project_id}")
+async def process_endpoint(project_id : str, process_request : ProcessRequest):
+    file_id = process_request.file_id
+    chunk_size = process_request.chunk_size
+    overlap_size = process_request.overlap_size
+
+    process_controller = ProcessController(project_id=project_id) # استخدم حرف صغير للتمييز
+    file_content = process_controller.get_file_content(file_id=file_id)
+    
+    file_chanks = process_controller.process_file_content(
+        file_id=file_id,
+        file_content=file_content,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size
+    )
+
+    if file_chanks is None or len(file_chanks) == 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": ResponseEnums.FILE_UPLOAD_FAILED.value}
+        )
+
+    return file_chanks
